@@ -1,8 +1,7 @@
 namespace LongreachAi.Connectors.UiPath;
 
-public class OrchestratorAction(Orchestrator orchestrator)
+public partial class Orchestrator 
 {
-    readonly OrchestratorAPI _Api = orchestrator.Api;
     public bool AssignMachine(long folderId, long machineId)
     {
         FolderAssignMachinesRequest assignReq = new()
@@ -14,7 +13,7 @@ public class OrchestratorAction(Orchestrator orchestrator)
             }
         };
 
-        return _Api.Folders_AssignMachinesAsync(assignReq).Result.IsSuccessful();
+        return GetApi().Folders_AssignMachinesAsync(assignReq).Result.IsSuccessful();
     }
 
     public bool AssignRobot(long folderId, long userId, int roleId)
@@ -28,7 +27,7 @@ public class OrchestratorAction(Orchestrator orchestrator)
             }
         };
 
-        return _Api.Folders_AssignUsersAsync(assignReq).Result.IsSuccessful();
+        return GetApi().Folders_AssignUsersAsync(assignReq).Result.IsSuccessful();
     }
     public JobDto? StartJob(long folderId, string processKey, string machineTemplate, string robotUserName, long? machineId = null)
     {
@@ -43,7 +42,7 @@ public class OrchestratorAction(Orchestrator orchestrator)
             }
         };
 
-        var result = _Api.Jobs_StartJobsAsync(startJobsDto, "", "", "", "", null, folderId).Result;
+        var result = GetApi().Jobs_StartJobsAsync(startJobsDto, "", "", "", "", null, folderId).Result;
         return result.IsSuccessful() ? result.Result.Value.First() : null;
     }
 }

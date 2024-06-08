@@ -2,14 +2,16 @@ namespace LongreachAi.Connectors.UiPath
 {
     using System.Net.Http;
     using System.Text.Json;
+    using Microsoft.Extensions.Options;
     using RestSharp;
 
     /// <summary>
     /// Authenticates with UiPath Identity Endpoint. Supports Confidential Client Credentials grant type.
     /// </summary>
-    public class UiPathAuthenticator
+    public class UiPathAuthenticator(UiPathOptions configOptions) 
     {
-        readonly UiPathOptions _ConfigOptions = new();
+        readonly UiPathOptions _ConfigOptions = configOptions ??
+                                throw new ArgumentNullException(nameof(configOptions));
         readonly JsonSerializerOptions _Serializer = new() { PropertyNameCaseInsensitive = true };
 
         /// <summary>
@@ -22,19 +24,6 @@ namespace LongreachAi.Connectors.UiPath
         public record AuthenticationResponse(string access_token = "", string token_type = "",
                                                     int expires_in = 0, string scope = "");
 
-        readonly AuthenticationResponse _AuthResponse = new();
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="settings"></param>
-        /// <exception cref="ArgumentNullException"></exception>
-        /// Pass the IConfiguration object to bind the UiPathOptions        
-        public UiPathAuthenticator(UiPathOptions configOptions)
-        {
-            ArgumentNullException.ThrowIfNull(configOptions, nameof(configOptions));
-            _ConfigOptions = configOptions;
-        }
-
         /// <summary>
         /// Authenticate with UiPath Identity Endpoint. Returns the AuthenticationResponse object.
         /// </summary>
@@ -44,7 +33,7 @@ namespace LongreachAi.Connectors.UiPath
         public AuthenticationResponse Authenticate()
         {
 
-            HttpClient client = new HttpClient(new HttpClientHandler { UseProxy = _ConfigOptions.UseProxy })
+            HttpClient client = new(new HttpClientHandler { UseProxy = _ConfigOptions.UseProxy })
             {
                 BaseAddress = new Uri(_ConfigOptions.IdentityUrl)
             };
@@ -57,15 +46,16 @@ namespace LongreachAi.Connectors.UiPath
                 .AddParameter("scope", _ConfigOptions.AuthScope, ParameterType.GetOrPost);
             RestResponse response;
 
-            response = new RestClient(client).Execute(request);
+            using (RestClient rc = new(client))
+            {
+                response = rc.Execute(request);
+            }
 
             if (!response.IsSuccessful)
                 throw new HttpRequestException($"Failed to authenticate: {response.Content}");
 
-            AuthenticationResponse authresponse = JsonSerializer.Deserialize<AuthenticationResponse>(response.Content!, _Serializer)
-                                                    ?? throw new JsonException("Unexpected response form");
-            
-            return authresponse;
+            return JsonSerializer.Deserialize<AuthenticationResponse>(response.Content!, _Serializer)
+                   ?? throw new JsonException("Unexpected response form");
         }
     }
 }

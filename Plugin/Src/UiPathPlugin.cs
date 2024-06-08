@@ -1,22 +1,24 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿namespace LongreachAi.Semantic.Plugins;
+
+using Microsoft.Extensions.Configuration;
 using LongreachAi.Connectors.UiPath;
+using Microsoft.SemanticKernel;
+using System.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
-namespace LongreachAi.Semantic.Plugins;
-public class UiPathPlugin
+public class UiPathPlugin(IOptions<UiPathOptions> options)
 {
-readonly OrchestratorQuery _QueryClient;
-readonly OrchestratorAction _ActionClient;
-public UiPathPlugin()
-{
-     var config = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.json")
-            .Build();
-        var options = config.GetSection(UiPathOptions.SectionName).Get<UiPathOptions>()!;
-        var orch = new Orchestrator(options);
-        _QueryClient = new OrchestratorQuery(orch);
-        _ActionClient = new OrchestratorAction(orch);
-}
+        readonly Orchestrator orch = new (options.Value);
 
- 
+        [KernelFunction("GetFolders")]
+        [Description(@"Get all folders.
+        Returns a Json string with folder details")]
+        public string GetFolders()
+        {
+                return orch.GetFolders().ToJson();
+        }
+
+
 
 }
