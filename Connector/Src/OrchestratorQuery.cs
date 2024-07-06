@@ -8,19 +8,8 @@ namespace LongreachAi.Connectors.UiPath
             if (f != null)
                 return f;
 
-            Folders = GetApi().Folders_GetAsync("", "", "", "", 1000, 0, false).Result.Result.Value;
+            Folders = GetApi().Folders_GetAsync("", "", "", "", 500, 0, false).Result.Result.Value;
             return Folders?.Where(f => folderName == "" || f.FullyQualifiedName.IsMatchOf(folderName));
-        }
-
-        public IEnumerable<MachineDto>? GetMachineTemplates(string machineTemplate = "")
-        {
-            var m = machineTemplate != "" ? MachineTemplates?.Where(m => m.Name.IsMatchOf(machineTemplate)) : null;
-            if (m != null)
-                return m;
-
-            MachineTemplates = GetApi().Machines_GetAsync("", "", "", "", 1000, 0, false).Result.Result.Value;
-            return MachineTemplates?.Where(m => m.Type == MachineDtoType.Template
-                && (machineTemplate == "" || m.Name.IsMatchOf(machineTemplate)));
         }
 
         public IEnumerable<UserDto>? GetUsers(string userName = "")
@@ -29,7 +18,7 @@ namespace LongreachAi.Connectors.UiPath
             if (u != null)
                 return u;
 
-            Users = GetApi().Users_GetAsync("", "", "", "", 1000, 0, false).Result.Result.Value;
+            Users = GetApi().Users_GetAsync("", "", "", "", 500, 0, false).Result.Result.Value;
             return Users?.Where(u => userName == "" || u.UserName.IsMatchOf(userName));
         }
 
@@ -38,7 +27,7 @@ namespace LongreachAi.Connectors.UiPath
             var p = packageName != "" ? Packages?.Where(p => p.Id.IsMatchOf(packageName)) : null;
             if (p == null)
             {
-                Packages = GetApi().Processes_GetAsync("", null, "", "", "", "", 1000, 0, false).Result.Result.Value;
+                Packages = GetApi().Processes_GetAsync("", null, "", "", "", "", 500, 0, false).Result.Result.Value;
             }
             //if no package name is given, just return all top level package versions
             if (packageName == "") return Packages;
@@ -52,7 +41,7 @@ namespace LongreachAi.Connectors.UiPath
         {
             if (folderName == "") return null;
             var folderId = GetFolders(folderName)?.First().Id;
-            var processes = GetApi().Releases_GetAsync([""], [""], "", "", "", "", 1000, 0, false, folderId).Result.Result.Value;
+            var processes = GetApi().Releases_GetAsync([""], [""], "", "", "", "", 500, 0, false, folderId).Result.Result.Value.Where(p => !p.IsProcessDeleted ?? false);
             return processName == "" ? processes : processes.Where(p => p.Name.IsMatchOf(processName));
         }
 
@@ -60,14 +49,14 @@ namespace LongreachAi.Connectors.UiPath
         {
             if (folderName == "") return null;
             var folderId = GetFolders(folderName)?.First().Id;
-            return GetApi().ProcessSchedules_GetAsync("", "", "", "", 1000, 0, false, folderId).Result.Result.Value;
+            return GetApi().ProcessSchedules_GetAsync("", "", "", "", 500, 0, false, folderId).Result.Result.Value;
         }
 
         public IEnumerable<JobDto>? GetJobs(string folderName)
         {
             if (folderName == "") return null;
             var folderId = GetFolders(folderName)?.First().Id;
-            return GetApi().Jobs_GetAsync([""], [""], "", "", "", "", 1000, 0, false, folderId).Result.Result.Value;
+            return GetApi().Jobs_GetAsync([""], [""], "", "", "", "", 500, 0, false, folderId).Result.Result.Value;
         }
 
         public IEnumerable<RoleDto>? GetRoles(string roleName = "")
@@ -76,10 +65,18 @@ namespace LongreachAi.Connectors.UiPath
             if (r != null)
                 return r;
 
-            Roles = GetApi().Roles_GetAsync("", "", "", "", 1000, 0, false).Result.Result.Value;
+            Roles = GetApi().Roles_GetAsync("", "", "", "", 500, 0, false).Result.Result.Value;
             return Roles?.Where(r => roleName == "" || r.Name.IsMatchOf(roleName));
         }
 
+        public IEnumerable<UserRolesDto>? GetUsersinFolder(string folderName)
+        {
+            if (folderName == "") return null;
+            long folderId = GetFolders(folderName)?.First().Id ?? 0;
+
+            return folderId == 0 ? null : GetApi().Folders_GetUsersForFolderByKeyAndIncludeinheritedAsync(folderId,
+                        true, true, "", "", "", "", null, null, null).Result.Result.Value;
+        }
         public IEnumerable<FolderAssignmentsDto>? GetFolderRolesForUser(string userName)
         {
             return GetApi().Folders_GetAllRolesForUserByUsernameAndSkipAndTakeAsync(userName, 0, 100, null, "", "", "").Result.Result.PageItems;
@@ -90,23 +87,33 @@ namespace LongreachAi.Connectors.UiPath
             return GetApi().Folders_GetAllRolesForUserByUsernameAndSkipAndTakeAsync(userName, 0, 100, null, "", "", "").Result.Result.TenantRoles;
         }
 
+        public IEnumerable<MachineDto>? GetMachineGroups(string machineGroup = "")
+        {
+            var m = machineGroup != "" ? MachineTemplates?.Where(m => m.Name.IsMatchOf(machineGroup)) : null;
+            if (m != null)
+                return m;
+
+            MachineTemplates = GetApi().Machines_GetAsync("", "", "", "", 500, 0, false).Result.Result.Value;
+            return MachineTemplates?.Where(m => m.Type == MachineDtoType.Template
+                && (machineGroup == "" || m.Name.IsMatchOf(machineGroup)));
+        }
         public IEnumerable<MachineDto>? GetMachineGroupsinFolder(string folderName)
         {
             if (folderName == "") return null;
 
-            FolderDto? folder = GetFolders(folderName)?.First();
+            FolderDto? folder = GetFolders(folderName)?.First() ?? null;
             if (folder == null) return null;
             var folderId = (long)folder.Id!;
-            var taskResult = GetApi().Machines_GetAssignedMachinesByFolderidAsync(folderId, null, "", "", "", "", 100, 0, false).Result;
+            var taskResult = GetApi().Machines_GetAssignedMachinesByFolderidAsync(folderId, null, "", "", "", "", 500, 0, false).Result;
             return taskResult.Result.Value.Where(m => m.Type == MachineDtoType.Template);
         }
 
         public IEnumerable<MachineSessionDto>? GetMachines(string MachineGroup)
         {
             if (MachineGroup == "") return null;
-            long? machineId = GetMachineTemplates(MachineGroup)?.First().Id;
-            if (machineId == null) return null;
-            return GetApi().Sessions_GetMachineSessionsByKeyAsync((long)machineId, "", "", "", "", null, null, null).Result.Result.Value;
+            long? machineGroupId = GetMachineGroups(MachineGroup)?.First().Id;
+            if (machineGroupId == null) return null;
+            return GetApi().Sessions_GetMachineSessionsByKeyAsync((long)machineGroupId, "", "", "", "", null, null, null).Result.Result.Value;
         }
 
         public IEnumerable<MachineSessionDto>? GetMachinesinFolder(string folderName)
@@ -117,7 +124,7 @@ namespace LongreachAi.Connectors.UiPath
 
             foreach (var machinegroup in machinegroups)
             {
-                var taskResult = GetApi().Sessions_GetMachineSessionsByKeyAsync((long)machinegroup.Id!, "", "", "", "", null, null, null).Result.Result.Value;
+                var taskResult = GetApi().Sessions_GetMachineSessionsByKeyAsync((long)machinegroup.Id!, "", "", "", "", 500, null, null).Result.Result.Value;
                 if (taskResult.Any()) machines = machines.Concat(taskResult);
             }
             return machines;
