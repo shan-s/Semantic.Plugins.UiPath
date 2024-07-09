@@ -4,12 +4,14 @@ namespace LongreachAi.Connectors.UiPath
     {
         public IEnumerable<FolderDto>? GetFolders(string folderName = "")
         {
-            var f = folderName != "" ? Folders?.Where(f => f.FullyQualifiedName.IsMatchOf(folderName)) : null;
+            var f = folderName != "" ? Folders?.Where(f => folderName.Contains('/')?f.FullyQualifiedName.IsMatchOf(folderName)
+                    :f.DisplayName.IsMatchOf(folderName)) : null;
             if (f != null)
                 return f;
 
             Folders = GetApi().Folders_GetAsync("", "", "", "", 500, 0, false).Result.Result.Value;
-            return Folders?.Where(f => folderName == "" || f.FullyQualifiedName.IsMatchOf(folderName));
+            return Folders?.Where(f => folderName == "" || folderName.Contains('/')?f.FullyQualifiedName.IsMatchOf(folderName)
+                    :f.DisplayName.IsMatchOf(folderName));
         }
 
         public IEnumerable<UserDto>? GetUsers(string userName = "")
@@ -135,9 +137,9 @@ namespace LongreachAi.Connectors.UiPath
         ///</summary>
         public IEnumerable<LogDto>? GetLogs(long folderId, string jobKey = "", string processName = "")
         {
-            var filter = jobKey != "" ? "JobKey=" + jobKey : processName != "" ? "ProcessName=" + processName : "";
+            var filter = jobKey != "" ? "JobKey eq " + jobKey : processName != "" ? "ProcessName eq " + $"'{processName}'" : "";
 
-            return GetApi().RobotLogs_GetAsync("", filter, "", "TimeStamp desc", 50, 0, false, folderId).Result.Result.Value;
+            return GetApi().RobotLogs_GetAsync("", filter, "", "TimeStamp desc", 500, 0, false, folderId).Result.Result.Value;
         }
     }
 }

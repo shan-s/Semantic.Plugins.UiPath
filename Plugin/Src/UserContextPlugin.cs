@@ -2,7 +2,8 @@ using Microsoft.SemanticKernel;
 using System.ComponentModel;
 
 namespace LongreachAi.Semantic.Plugins;
-public class SystemContextPlugin
+[Description("Gets the details about the environment in which the user lives.")]
+public class UserContextPlugin
 {
 
     [KernelFunction("get_Current_DateTime")]
