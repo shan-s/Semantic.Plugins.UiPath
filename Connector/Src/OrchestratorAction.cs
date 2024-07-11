@@ -29,7 +29,8 @@ public partial class Orchestrator
 
         return GetApi().Folders_AssignUsersAsync(assignReq).Result.IsSuccessful();
     }
-    public JobDto? StartJob(long folderId, string processKey, string machineTemplate, string robotUserName, long? hostMachineId = null)
+
+    public JobDto? StartJob(long folderId, string processKey, long machineTemplateId, long robotUserId, long? hostMachineId = null)
     {
         StartJobsRequest startJobsDto = new()
         {
@@ -37,8 +38,8 @@ public partial class Orchestrator
             {
                 ReleaseKey = processKey,
                 Strategy = StartProcessDtoStrategy.ModernJobsCount,
-                MachineRobots = [new MachineRobotDto() { MachineName = machineTemplate, RobotUserName = robotUserName }],
-                MachineSessionIds = hostMachineId.HasValue ? [(long)hostMachineId] : null
+                MachineRobots = [new MachineRobotDto() { MachineId = machineTemplateId, RobotId = robotUserId }],
+                MachineSessionIds = hostMachineId!=null ? [(long)hostMachineId] : null
             }
         };
 

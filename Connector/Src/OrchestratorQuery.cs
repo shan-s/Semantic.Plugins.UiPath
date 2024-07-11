@@ -79,6 +79,16 @@ namespace LongreachAi.Connectors.UiPath
             return folderId == 0 ? null : GetApi().Folders_GetUsersForFolderByKeyAndIncludeinheritedAsync(folderId,
                         true, true, "", "", "", "", null, null, null).Result.Result.Value;
         }
+
+        public IEnumerable<UserDto>? GetRobotsUsersinFolder(string folderName)
+        {
+        
+          return from u in GetUsers()
+                       join f in GetUsersinFolder(folderName)??[new UserRolesDto()] on u.UserName equals f.UserEntity.UserName
+                       where u.MayHaveRobotSession.GetValueOrDefault()
+                       && f.UserEntity.MayHaveUnattended.GetValueOrDefault()
+                       select u;
+        }
         public IEnumerable<FolderAssignmentsDto>? GetFolderRolesForUser(string userName)
         {
             return GetApi().Folders_GetAllRolesForUserByUsernameAndSkipAndTakeAsync(userName, 0, 100, null, "", "", "").Result.Result.PageItems;

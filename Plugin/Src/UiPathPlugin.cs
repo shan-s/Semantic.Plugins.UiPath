@@ -8,7 +8,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Namotion.Reflection;
 using System.Security.Cryptography;
+using System.Reflection.Metadata.Ecma335;
 
+[Description(@"Enables connection to UiPath Orchestrator 
+and provides access to various functionalities. 
+Supports the following queries on Orchestrator: Folders, Users, Roles, Machine Groups, Packages, Processes, Jobs, Triggers. 
+Support the following actions on Orchestrator: Assign User to Folder, Assign Machine Group to Folder, Execute Process. 
+Supports Modern Folders. Does not support Classic Folders. 
+Supports Machine Templates. Does not support Standard Machines.")]
 public class UiPathPlugin(IOptions<UiPathOptions> options)
 {
         readonly Orchestrator orch = new(options.Value);
@@ -22,12 +29,12 @@ public class UiPathPlugin(IOptions<UiPathOptions> options)
 
                 foreach (var folder in folders!)
                 {
-                       var subfolders = folders.Where(f => f.ParentId == folder.Id).Select(f => f.FullyQualifiedName).ToJson();
-                       folder.Description = folder.Description + " Subfolders: "+subfolders;
+                        var subfolders = folders.Where(f => f.ParentId == folder.Id).Select(f => f.FullyQualifiedName).ToJson();
+                        folder.Description = folder.Description + " Subfolders: " + subfolders;
                 }
 
                 return folders?.Select(f => $@"name:{f.FullyQualifiedName}, displayName: {f.DisplayName},
-                        description: {f.Description}, id: {f.Id}, key: {f.Key}, parentFolderId: {f.ParentId}").Take(50).ToList()
+                        description: {f.Description}, id: {f.Id}, parentFolderId: {f.ParentId}").Take(50).ToList()
                         ?? ["Error: No Folders found in Tenant"];
         }
 
@@ -55,7 +62,7 @@ public class UiPathPlugin(IOptions<UiPathOptions> options)
          Return: List of Machine Groups at Tenant Level.")]
         public List<string> GetAllMachineGroups()
         {
-                var machines = orch.GetMachineGroups()?.Select(m => $@"name: {m.Name}, id: {m.Id}, key: {m.Key},
+                var machines = orch.GetMachineGroups()?.Select(m => $@"name: {m.Name}, id: {m.Id},
                         description: {m.Description}, type: {m.Type}").ToList();
                 return machines ?? ["Error: No Machine Groups found in Tenant"];
         }
@@ -78,6 +85,16 @@ public class UiPathPlugin(IOptions<UiPathOptions> options)
                 return user ?? "Error: User not found in Tenant";
         }
 
+        [KernelFunction("get_users_in_Folder")]
+        [Description(@"Purpose: Given a specific folder name, gets the users allocated to the folder.
+         Return: List of Users in specified folder. Error message is returned if the folder name is not found.")]
+        public List<string> GetUsersinFolder([Description(@"Folder name")] string folderName)
+        {
+                var users = orch.GetUsersinFolder(folderName)?.Select(u => $@" id: {u.UserEntity.Id}, name: {u.UserEntity.UserName}, 
+                        fullName: {u.UserEntity.FullName}, userRoles: {u.Roles.ToJson()}").ToList();
+                return users ?? ["Error: No Users found in folder"];
+        }
+
         [KernelFunction("get_Specific_Machine_Group_Details")]
         [Description(@"Purpose: Given a specific Machine Group name, gets the Machine Group details.
          Return: JSON string containing Machine Group info. Error message is returned if the Machine Group name is not found.")]
@@ -93,9 +110,10 @@ public class UiPathPlugin(IOptions<UiPathOptions> options)
         public List<string> GetMachineGroupsinFolder([Description(@"Folder name")] string folderName)
         {
                 var machines = orch.GetMachineGroupsinFolder(folderName)?.Select(m => $@"name: {m.Name}, id: {m.Id},
-                description: {m.Description}, key: {m.Key}").ToList();
+                description: {m.Description}").ToList();
                 return machines ?? ["Error: No Machine Groups found in folder"];
         }
+
 
         [KernelFunction("get_HostMachines_in_Machine_Group")]
         [Description(@"Purpose: Given a specific Machine Group Name, gets the Machines contained in the machine group.
@@ -129,7 +147,7 @@ public class UiPathPlugin(IOptions<UiPathOptions> options)
         Return: List of all Processes in specified folder. Error if no processes found.")]
         public List<string> GetProcesses([Description(@"Folder name")] string folderName)
         {
-                var processes = orch.GetProcesses(folderName)?.Select(p => $@"name: {p.Name}, id: {p.Id}, key: {p.Key}, 
+                var processes = orch.GetProcesses(folderName)?.Select(p => $@"name: {p.Name}, id: {p.Id}, releaseKey: {p.Key}, 
                         description: {p.Description}, version: {p.ProcessVersion}, isAttendedAutomation: {p.IsAttended}").ToList();
                 return processes ?? ["Error: No Processes found in folder"];
         }
@@ -148,7 +166,7 @@ public class UiPathPlugin(IOptions<UiPathOptions> options)
         Return: List containing trigger details.")]
         public List<string> GetTriggers([Description(@"Folder name")] string folderName)
         {
-                var triggers = orch.GetTriggers(folderName)?.Select(t => $@"name: {t.Name}, id: {t.Id}, key: {t.Key}, 
+                var triggers = orch.GetTriggers(folderName)?.Select(t => $@"name: {t.Name}, id: {t.Id}, 
                         description: {t.Description}, processName: {t.ReleaseName}, scheduleCron: {t.StartProcessCron}, 
                         scheduleTimeZone: {t.TimeZoneIana}, queueName: {t.QueueDefinitionName}, enabled: {t.Enabled},
                         priority: {t.SpecificPriorityValue}, ${t.MachineRobots.Select(m => "machineGroup:" + m.MachineName +
@@ -157,52 +175,52 @@ public class UiPathPlugin(IOptions<UiPathOptions> options)
         }
 
         [KernelFunction("get_All_Jobs_in_Folder")]
-        [Description(@"Purpose: Gets list of top 50 jobs in Folder. Return: JSON string containing job info.")]
+        [Description(@"Purpose: Gets list of top 50 jobs in Folder. Return: JSON string containing essential job info.")]
         public List<string> GetAllJobsinFolder([Description(@"Folder Name")] string folderName)
         {
-                var jobs = orch.GetJobs(folderName)?.Select(j => ($@"id: {j.Id}, key: {j.Key}, processName: {j.ReleaseName}, 
-                        machineGroup: {j.Machine}, hostMachine: {j.HostMachineName}, startTime: {j.StartTime}, 
-                        endTime: {j.EndTime}, jobState: {j.State}", j.StartTime))
+                var jobs = orch.GetJobs(folderName)?.Select(j => ($@"id: {j.Id}, processName: {j.ReleaseName}, 
+                        machineGroup: {j.Machine}, hostMachine: {j.HostMachineName}, jobStartTime: {j.StartTime}, 
+                        jobEndTime: {j.EndTime}, jobState: {j.State}", j.StartTime))
                         .OrderByDescending(j => j.StartTime).Take(50).Select(j => j.Item1).ToList();
                 return jobs ?? ["Error: No Jobs found in folder"];
         }
 
         [KernelFunction("get_Specific_Job_Details")]
-        [Description(@"Purpose: Given a specific Job Id in a folder, gets the Job details.
+        [Description(@"Purpose: Given a specific Job Id in a folder, gets the full Job details.
          Return: JSON object containing Job info.")]
-        public string GetJobDetails([Description(@"Folder name")]string folderName, [Description(@"Job Id")] string jobId)
+        public string GetJobDetails([Description(@"Folder name")] string folderName, [Description(@"Job Id")] string jobId)
         {
-                var job = orch.GetJobs(folderName)?.Where(j=>j.Id.ToString()==jobId).ToJson();
+                var job = orch.GetJobs(folderName)?.Where(j => j.Id.ToString() == jobId).ToJson();
                 return job ?? "Error: Job not found in Tenant";
         }
 
-        [KernelFunction("get_Logs_for_Process_in_Folder")]
-        [Description(@"Purpose: Gets execution logs for a specified Process in a specified folder.
-        Return: List of top 50 execution logs. Error if no logs found.")]
-        public List<string> GetLogsforProcess([Description(@"Folder Name")] string folderName, [Description(@"Process Name")] string processName)
+        [KernelFunction("get_robots_in_Folder")]
+        [Description(@"Purpose: Given a specific folder name, gets the robots allocated to the folder.
+         Return: List of Robots in specified folder. Error message is returned if the folder name is not found.")]
+        public List<string> GetRobotsinFolder([Description(@"Folder name")] string folderName)
         {
-                var folderId = orch.GetFolders(folderName)?.FirstOrDefault()?.Id;
-                if (folderId == null) return ["Error: Folder not found in Tenant"];
-                var logs = orch.GetLogs(folderId: (long)folderId!, processName: processName)?.Select(l => ($@"logLevel: {l.Level}, 
-                        processName: {l.ProcessName}, machineName: {l.HostMachineName}, windowsIdentity: {l.WindowsIdentity}, 
-                        logMessage: {l.Message}",l.TimeStamp)).OrderByDescending(l=>l.TimeStamp).Take(50).Select(l=>l.Item1).ToList();
-
-                return logs ?? ["Error: No Logs found in folder"];
+                var robots = orch.GetRobotsUsersinFolder(folderName)?.Select(r => $@" robotId: {r.UnattendedRobot.RobotId}, 
+                        name: {r.RobotProvision.UserName}").ToList();
+                        
+                return robots ?? ["Error: No Robots found in folder"];
         }
 
-        [KernelFunction("get_Logs_for_Job_in_Folder")]
-        [Description(@"Purpose: Gets execution logs for a specified Job in a specified folder.
-        Return: List of top 50 execution logs. Error if no logs found.")]
-        public List<string> GetLogsforJob([Description(@"Folder Name")] string folderName, [Description(@"Job Key")] string jobKey)
+        [KernelFunction("execute_Process_in_Folder")]
+        [Description(@"Purpose: Given a specific Folder Id, Process Id, Machine Group Id, robot Id,
+        and optional Host Machine Id, executes the Process. The Process, Machine Group, and Robot must be available in the same folder.
+        The Host Machine must belong to the Machine Group.")]
+        public string ExecuteProcess([Description(@"Folder Id")] string folderId, [Description(@"Release Key of Process")] string releaseKey,
+                [Description(@"Machine Group Id")] string machineGroupId, [Description(@"User Id")] string robotUserId,
+                [Description(@"Host Machine Id")] long? hostMachineId)
         {
-                var folderId = orch.GetFolders(folderName)?.FirstOrDefault()?.Id;
-                if (folderId == null) return ["Error: Folder not found in Tenant"];
-                var logs = orch.GetLogs(folderId: (long)folderId!, jobKey: jobKey)?.Select(l => ($@"logLevel: {l.Level}, 
-                        processName: {l.ProcessName}, machineName: {l.HostMachineName}, windowsIdentity: {l.WindowsIdentity}, 
-                        logMessage: {l.Message}",l.TimeStamp,l.Level)).Where(l=>l.Level!=LogDtoLevel.Debug||l.Level!= LogDtoLevel.Trace)
-                        .OrderByDescending(l=>l.TimeStamp).Take(50).Select(l=>l.Item1).ToList();
+                if (!long.TryParse(folderId, out long lfolderId)) throw new ArgumentException("Invalid Folder Id");
+                if (!long.TryParse(machineGroupId, out long lmachineGroupId)) throw new ArgumentException("Invalid Machine Group Id");
+                if (!long.TryParse(robotUserId, out long lrobotUserId)) throw new ArgumentException("Invalid User Id");
 
-                return logs ?? ["Error: No Logs found in folder"];
+                var job = orch.StartJob(lfolderId, releaseKey, lmachineGroupId, lrobotUserId, hostMachineId);
+                return job?.ToJson() ?? "Error: Process execution failed";
         }
+
+
 
 }

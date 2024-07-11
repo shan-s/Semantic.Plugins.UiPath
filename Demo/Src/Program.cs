@@ -22,7 +22,7 @@ builder.Services.AddLogging(c => c.SetMinimumLevel(LogLevel.Information));
 builder.Services.AddChatCompletionService(kernelSettings);
 builder.Services.AddOptions<UiPathOptions>().Bind(config.GetSection(UiPathOptions.SectionName));
 builder.Plugins.AddFromType<UiPathPlugin>();
-builder.Plugins.AddFromType<UserContextPlugin>();
+builder.Plugins.AddFromType<GlobalContextPlugin>();
 
 Kernel kernel = builder.Build();
 
